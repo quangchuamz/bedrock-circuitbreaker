@@ -121,4 +121,50 @@ git commit -m "feat: implement circuit breaker pattern
 Closes #123"
 ```
 
-Would you like me to explain any part of the GitFlow process in more detail?
+
+
+
+`git rebase develop` takes your feature branch commits and replays them on top of the latest develop branch. Here's a visual explanation:
+
+Before rebase:
+```
+develop:        A---B---C
+                     \
+feature branch:       D---E
+```
+
+After rebase:
+```
+develop:        A---B---C
+                         \
+feature branch:          D'---E'
+```
+
+The benefits of using rebase:
+1. Keeps a cleaner, linear history
+2. Avoids merge commits
+3. Makes it easier to resolve conflicts
+4. Your feature branch changes appear as if they were built on top of the latest develop changes
+
+Alternative approach (using merge):
+```bash
+git checkout develop
+git pull
+git checkout feature/circuit-breaker-implementation
+git merge develop
+```
+
+This would create a merge commit:
+```
+develop:        A---B---C
+                     \   \
+feature branch:       D---E---M
+```
+
+Most teams prefer rebase for feature branches because:
+- It's easier to review the changes
+- History stays cleaner
+- Avoids unnecessary merge commits
+- Makes the final merge into develop smoother
+
+However, never rebase branches that other developers are working on or public branches (like develop or main), as it rewrites history.
