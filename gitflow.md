@@ -1,5 +1,5 @@
 
-
+# Gitflow
 I'll guide you through creating a new feature using GitFlow workflow. Here are the steps:
 
 1. First, make sure you have GitFlow initialized in your repository:
@@ -121,9 +121,7 @@ git commit -m "feat: implement circuit breaker pattern
 Closes #123"
 ```
 
-
-
-
+## Rebase
 `git rebase develop` takes your feature branch commits and replays them on top of the latest develop branch. Here's a visual explanation:
 
 Before rebase:

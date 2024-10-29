@@ -3,52 +3,81 @@ from fastapi import HTTPException
 from botocore.exceptions import ClientError
 from app.core.config import settings
 from app.services.circuit_handler import circuit_handler, check_failure_simulation
+from app.services.load_balancer import LoadBalancer
 import logging
-from functools import wraps
 
 logger = logging.getLogger(__name__)
 
-class BedrockService:
-    def __init__(self):
+class BedrockEndpoint:
+    def __init__(self, region: str):
+        self.region = region
         self.client = boto3.client(
             service_name='bedrock-runtime',
-            region_name=settings.AWS_REGION,
+            region_name=region,
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
         )
+
+class BedrockService:
+    def __init__(self):
+        self.load_balancer = LoadBalancer(strategy=settings.LOAD_BALANCER_STRATEGY)
+        
+        # Add endpoints with weights (higher weight = more traffic)
+        self.load_balancer.add_endpoint(
+            BedrockEndpoint(settings.AWS_REGION_1), 
+            weight=2  # Primary region gets more traffic
+        )
+        self.load_balancer.add_endpoint(
+            BedrockEndpoint(settings.AWS_REGION_2), 
+            weight=1  # Secondary region gets less traffic
+        )
+        
         self._setup_circuit_breaker()
 
     def _setup_circuit_breaker(self):
         @circuit_handler.decorate
-        @wraps(self._generate_conversation_impl)
         async def wrapped(*args, **kwargs):
             return await self._generate_conversation_impl(*args, **kwargs)
         self.generate_conversation = wrapped
 
     async def _generate_conversation_impl(self, message_content: str, system_prompt: str | None = None):
-        # Check for simulated failures
         check_failure_simulation()
 
         try:
+            endpoint = self.load_balancer.get_next_endpoint()
+            
             system_prompts = [{"text": system_prompt or "You are a helpful AI assistant."}]
             messages = [{
                 "role": "user",
                 "content": [{"text": message_content}]
             }]
 
-            response = self.client.converse(
-                modelId=settings.MODEL_ID,
-                messages=messages,
-                system=system_prompts,
-                inferenceConfig={"temperature": 0.5},
-                additionalModelRequestFields={"top_k": 200}
-            )
+            try:
+                response = endpoint.client.converse(
+                    modelId=settings.MODEL_ID,
+                    messages=messages,
+                    system=system_prompts,
+                    inferenceConfig={"temperature": 0.5},
+                    additionalModelRequestFields={"top_k": 200}
+                )
+                
+                # Add region information to response
+                response['region'] = endpoint.region
+                
+                # Mark endpoint as healthy on successful response
+                self.load_balancer.mark_endpoint_healthy(endpoint)
+                
+                self._log_token_usage(response)
+                return response
 
-            self._log_token_usage(response)
-            return response
+            except ClientError as err:
+                # Mark endpoint as unhealthy on failure
+                self.load_balancer.mark_endpoint_unhealthy(endpoint)
+                logger.error(f"Error in region {endpoint.region}: {str(err)}")
+                raise
 
-        except ClientError as err:
-            message = err.response['Error']['Message']
+        except Exception as err:
+            message = str(err)
             logger.error("A client error occurred: %s", message)
             raise HTTPException(status_code=500, detail=message)
 
@@ -58,9 +87,5 @@ class BedrockService:
         logger.info("Output tokens: %s", token_usage['outputTokens'])
         logger.info("Total tokens: %s", token_usage['totalTokens'])
         logger.info("Stop reason: %s", response['stopReason'])
-
-    @property
-    def circuit_state(self):
-        return circuit_handler.state
 
 bedrock_service = BedrockService() 
