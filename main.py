@@ -21,6 +21,7 @@ async def chat(message: Message):
         
         return {
             "response": response['output']['message']['content'][0]['text'],
+            "region": response['region'],
             "token_usage": response['usage'],
             "stop_reason": response['stopReason'],
             "status": "success"
