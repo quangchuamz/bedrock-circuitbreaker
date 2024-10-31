@@ -22,15 +22,18 @@ class BedrockService:
     def __init__(self):
         self.load_balancer = LoadBalancer(strategy=settings.LOAD_BALANCER_STRATEGY)
         
-        # Add endpoints with weights (higher weight = more traffic)
-        self.load_balancer.add_endpoint(
-            BedrockEndpoint(settings.AWS_REGION_1), 
-            weight=2  # Primary region gets more traffic
-        )
-        self.load_balancer.add_endpoint(
-            BedrockEndpoint(settings.AWS_REGION_2), 
-            weight=1  # Secondary region gets less traffic
-        )
+        # Log configuration
+        logger.info(f"Initializing BedrockService with config: {settings.AWS_REGIONS_CONFIG}")
+        
+        # Add endpoints from configuration
+        for config in settings.AWS_REGIONS_CONFIG:
+            region = config['region']
+            weight = config['weight']
+            logger.info(f"Adding endpoint for {region} with weight {weight}")
+            self.load_balancer.add_endpoint(
+                BedrockEndpoint(region),
+                weight=weight
+            )
         
         self._setup_circuit_breaker()
 
