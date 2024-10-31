@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from circuitbreaker import CircuitBreakerError
 from app.services.bedrock_service import bedrock_service
 from app.testing.test_routes import test_router
 from app.core.config import settings
@@ -34,12 +33,6 @@ async def chat(message: Message):
             "stop_reason": response['stopReason'],
             "status": "success"
         }
-
-    except CircuitBreakerError:
-        raise HTTPException(
-            status_code=503,
-            detail="Circuit breaker is open. Service is unavailable."
-        )
     except Exception as e:
         raise HTTPException(
             status_code=503, 

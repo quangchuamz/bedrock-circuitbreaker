@@ -3,4 +3,3 @@ python-dotenv
 fastapi
 uvicorn
 pydantic
-circuitbreaker

@@ -2,7 +2,6 @@ import boto3
 from fastapi import HTTPException
 from botocore.exceptions import ClientError
 from app.core.config import settings
-from app.services.circuit_handler import circuit_handler, check_failure_simulation
 from app.services.load_balancer import LoadBalancer
 import logging
 
@@ -34,18 +33,8 @@ class BedrockService:
                 BedrockEndpoint(region),
                 weight=weight
             )
-        
-        self._setup_circuit_breaker()
 
-    def _setup_circuit_breaker(self):
-        @circuit_handler.decorate
-        async def wrapped(*args, **kwargs):
-            return await self._generate_conversation_impl(*args, **kwargs)
-        self.generate_conversation = wrapped
-
-    async def _generate_conversation_impl(self, message_content: str, system_prompt: str | None = None):
-        check_failure_simulation()
-
+    async def generate_conversation(self, message_content: str, system_prompt: str | None = None):
         try:
             endpoint = self.load_balancer.get_next_endpoint()
             
