@@ -3,8 +3,16 @@ from pydantic import BaseModel
 from circuitbreaker import CircuitBreakerError
 from app.services.bedrock_service import bedrock_service
 from app.testing.test_routes import test_router
+from app.core.config import settings
+from app.core.logger import logger
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info(f"Starting server with load balancer strategy: {settings.LOAD_BALANCER_STRATEGY}")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(test_router)
 
 class Message(BaseModel):
