@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.services.bedrock_service import bedrock_service
+from app.services.circuit_breaker import regional_circuit_breaker
 
 test_router = APIRouter(prefix="/test", tags=["testing"])
 
@@ -20,4 +21,8 @@ async def get_load_balancer_status():
             "endpoints": endpoints_status
         }
     except Exception as e:
-        return {"error": str(e)} 
+        return {"error": str(e)}
+
+@test_router.get("/circuit-breaker-status")
+async def get_circuit_breaker_status():
+    return regional_circuit_breaker.get_status() 
