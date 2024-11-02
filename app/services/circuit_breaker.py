@@ -12,15 +12,18 @@ class CircuitState(Enum):
     HALF_OPEN = "half_open"
 
 class CircuitBreaker:
-    def __init__(self, failure_threshold: int = 3, recovery_timeout: int = 30):
+    def __init__(self, failure_threshold: int = 3, recovery_timeout: int = 30, success_threshold: int = 2):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
+        self.success_threshold = success_threshold
         self.state = CircuitState.CLOSED
         self.failure_count = 0
+        self.success_count = 0
         self.last_failure_time = 0
         
     def record_failure(self):
         self.failure_count += 1
+        self.success_count = 0
         self.last_failure_time = time.time()
         
         if self.failure_count >= self.failure_threshold:
@@ -28,10 +31,17 @@ class CircuitBreaker:
             logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
     
     def record_success(self):
-        self.failure_count = 0
         if self.state == CircuitState.HALF_OPEN:
-            self.state = CircuitState.CLOSED
-            logger.info("Circuit breaker closed after successful recovery")
+            self.success_count += 1
+            logger.info(f"Circuit breaker recorded success ({self.success_count}/{self.success_threshold})")
+            
+            if self.success_count >= self.success_threshold:
+                self.state = CircuitState.CLOSED
+                self.failure_count = 0
+                self.success_count = 0
+                logger.info(f"Circuit breaker closed after {self.success_threshold} successful requests")
+        else:
+            self.failure_count = 0
     
     def can_execute(self) -> bool:
         if self.state == CircuitState.CLOSED:
@@ -40,12 +50,21 @@ class CircuitBreaker:
         if self.state == CircuitState.OPEN:
             if time.time() - self.last_failure_time >= self.recovery_timeout:
                 self.state = CircuitState.HALF_OPEN
+                self.success_count = 0
                 logger.info("Circuit breaker entering half-open state")
                 return True
             return False
             
         # HALF_OPEN state
         return True
+
+    def get_state_info(self) -> Dict[str, Any]:
+        return {
+            "state": self.state.value,
+            "failure_count": self.failure_count,
+            "success_count": self.success_count,
+            "last_failure_time": self.last_failure_time
+        }
 
 class RegionalCircuitBreaker:
     def __init__(self):

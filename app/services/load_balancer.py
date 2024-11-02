@@ -3,6 +3,7 @@ from typing import List, Any
 import random
 import logging
 from collections import deque
+from app.services.circuit_breaker import regional_circuit_breaker, CircuitState
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,12 @@ class LoadBalancer:
             sequence.extend([idx] * weight)
         return sequence
     
+    def _is_endpoint_available(self, endpoint_data: dict) -> bool:
+        """Check if endpoint is both healthy and circuit breaker allows execution"""
+        endpoint = endpoint_data["endpoint"]
+        breaker = regional_circuit_breaker.get_breaker(endpoint.region)
+        return breaker.can_execute()
+    
     def _round_robin(self) -> Any:
         """
         Weighted round-robin implementation using rotation index
@@ -33,13 +40,14 @@ class LoadBalancer:
         if not self.endpoints:
             raise Exception("No endpoints available")
 
-        healthy_indices = [
+        # Update to check both health and circuit breaker
+        available_indices = [
             idx for idx, ep in enumerate(self.endpoints) 
-            if ep["healthy"]
+            if self._is_endpoint_available(ep)
         ]
         
-        if not healthy_indices:
-            raise Exception("No healthy endpoints available")
+        if not available_indices:
+            raise Exception("No available endpoints")
 
         # Get the complete weighted sequence
         sequence = self._get_weighted_sequence()
@@ -54,7 +62,7 @@ class LoadBalancer:
             current_idx = sequence[self._rotation_index]
             self._rotation_index = (self._rotation_index + 1) % sequence_length
             
-            if current_idx in healthy_indices:
+            if current_idx in available_indices:
                 endpoint = self.endpoints[current_idx]
                 logger.info(
                     f"Round Robin selection: region={endpoint['endpoint'].region}, "
@@ -92,12 +100,13 @@ class LoadBalancer:
         Random selection with probability proportional to weights
         Higher weights have higher chance of being selected
         """
-        healthy_endpoints = [ep for ep in self.endpoints if ep["healthy"]]
-        if not healthy_endpoints:
-            raise Exception("No healthy endpoints available")
+        # Update to check both health and circuit breaker
+        available_endpoints = [ep for ep in self.endpoints if self._is_endpoint_available(ep)]
+        if not available_endpoints:
+            raise Exception("No available endpoints")
         
         # Calculate weights for healthy endpoints
-        weights = [ep["weight"] for ep in healthy_endpoints]
+        weights = [ep["weight"] for ep in available_endpoints]
         total_weight = sum(weights)
         
         if total_weight == 0:
@@ -107,7 +116,7 @@ class LoadBalancer:
         probabilities = [w/total_weight for w in weights]
         
         # Select endpoint based on weights
-        endpoint = random.choices(healthy_endpoints, weights=probabilities, k=1)[0]
+        endpoint = random.choices(available_endpoints, weights=probabilities, k=1)[0]
         logger.info(
             f"Weighted selection chose endpoint in region: {endpoint['endpoint'].region} "
             f"(weight: {endpoint['weight']}, probability: {endpoint['weight']/total_weight:.2%})"
@@ -126,16 +135,16 @@ class LoadBalancer:
             reverse=True
         )
         
-        # Try endpoints in weight order
+        # Try endpoints in weight order, checking both health and circuit breaker
         for endpoint in sorted_endpoints:
-            if endpoint["healthy"]:
+            if self._is_endpoint_available(endpoint):
                 logger.info(
                     f"Failover selected endpoint in region: {endpoint['endpoint'].region} "
                     f"(weight: {endpoint['weight']})"
                 )
                 return endpoint["endpoint"]
         
-        raise Exception("No healthy endpoints available")
+        raise Exception("No available endpoints")
     
     def mark_endpoint_unhealthy(self, endpoint: Any):
         """Mark an endpoint as unhealthy"""

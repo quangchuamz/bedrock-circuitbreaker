@@ -15,12 +15,12 @@ curl -s http://localhost:8000/test/circuit-breaker-status | jq
 
 # Trigger circuit breaker
 echo -e "\n${GREEN}2. Triggering circuit breaker...${NC}"
-for i in {1..4}; do
+for i in {1..8}; do
     echo -e "\n${BLUE}Request $i:${NC}"
     curl -s -X POST \
         http://localhost:8000/chat \
         -H 'Content-Type: application/json' \
-        -d '{"content": "trigger error"}' | jq
+        -d '{"content": "hello"}' | jq
     sleep 1
 done
 
@@ -35,10 +35,16 @@ sleep 30
 # Check circuit status after timeout
 echo -e "\n${GREEN}5. Circuit status after timeout:${NC}"
 curl -s http://localhost:8000/test/circuit-breaker-status | jq
+curl -s http://localhost:8000/test/circuit-breaker-status | jq
+curl -s http://localhost:8000/test/circuit-breaker-status | jq
 
 # Test recovery
 echo -e "\n${GREEN}6. Testing recovery...${NC}"
-curl -s -X POST \
-    http://localhost:8000/chat \
-    -H 'Content-Type: application/json' \
-    -d '{"content": "Hello"}' | jq 
+for i in {1..6}; do
+    echo -e "\n${BLUE}Request $i:${NC}"
+    curl -s -X POST \
+        http://localhost:8000/chat \
+        -H 'Content-Type: application/json' \
+        -d '{"content": "hello"}' | jq
+    sleep 1
+done
