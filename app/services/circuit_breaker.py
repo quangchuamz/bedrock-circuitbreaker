@@ -3,6 +3,7 @@ from typing import Dict, Any
 import time
 import logging
 from functools import wraps
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,12 @@ class CircuitState(Enum):
     HALF_OPEN = "half_open"
 
 class CircuitBreaker:
-    def __init__(self, failure_threshold: int = 3, recovery_timeout: int = 30, success_threshold: int = 2):
+    def __init__(
+        self,
+        failure_threshold: int = settings.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+        recovery_timeout: int = settings.CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
+        success_threshold: int = settings.CIRCUIT_BREAKER_SUCCESS_THRESHOLD
+    ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold
@@ -39,6 +45,7 @@ class CircuitBreaker:
                 self.state = CircuitState.CLOSED
                 self.failure_count = 0
                 self.success_count = 0
+                self.last_failure_time = 0
                 logger.info(f"Circuit breaker closed after {self.success_threshold} successful requests")
         else:
             self.failure_count = 0
@@ -80,7 +87,8 @@ class RegionalCircuitBreaker:
             region: {
                 "state": breaker.state.value,
                 "failure_count": breaker.failure_count,
-                "last_failure_time": breaker.last_failure_time
+                "last_failure_time": breaker.last_failure_time,
+                "success_count": breaker.success_count
             }
             for region, breaker in self.breakers.items()
         }

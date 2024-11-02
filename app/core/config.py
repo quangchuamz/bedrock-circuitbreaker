@@ -34,4 +34,26 @@ class Settings:
     MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0"
     LOAD_BALANCER_STRATEGY = os.getenv('LOAD_BALANCER_STRATEGY', 'round-robin')
 
+    # Circuit Breaker Settings
+    @property
+    def CIRCUIT_BREAKER_FAILURE_THRESHOLD(self) -> int:
+        value = int(os.getenv('CIRCUIT_BREAKER_FAILURE_THRESHOLD', '3'))
+        if value < 1:
+            raise ValueError("CIRCUIT_BREAKER_FAILURE_THRESHOLD must be at least 1")
+        return value
+
+    @property
+    def CIRCUIT_BREAKER_RECOVERY_TIMEOUT(self) -> int:
+        value = int(os.getenv('CIRCUIT_BREAKER_RECOVERY_TIMEOUT', '30'))
+        if value < 1:
+            raise ValueError("CIRCUIT_BREAKER_RECOVERY_TIMEOUT must be at least 1 second")
+        return value
+
+    @property
+    def CIRCUIT_BREAKER_SUCCESS_THRESHOLD(self) -> int:
+        value = int(os.getenv('CIRCUIT_BREAKER_SUCCESS_THRESHOLD', '2'))
+        if value < 1:
+            raise ValueError("CIRCUIT_BREAKER_SUCCESS_THRESHOLD must be at least 1")
+        return value
+
 settings = Settings() 

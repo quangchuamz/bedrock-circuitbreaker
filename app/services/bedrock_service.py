@@ -8,18 +8,47 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class RegionMapper:
+    def __init__(self):
+        self.mappings = {}
+    
+    def get_effective_region(self, region: str) -> str:
+        """Get the effective region to use (mapped or original)"""
+        return self.mappings.get(region, region)
+    
+    def set_mapping(self, source_region: str, target_region: str):
+        """Set a region mapping"""
+        self.mappings[source_region] = target_region
+        logger.info(f"Mapped region {source_region} to {target_region}")
+    
+    def clear_mappings(self):
+        """Clear all mappings"""
+        self.mappings = {}
+        logger.info("Cleared all region mappings")
+
+# Create a global instance
+region_mapper = RegionMapper()
+
 class BedrockEndpoint:
     def __init__(self, region: str):
         self.region = region
+        self._create_client(region)
+    
+    def _create_client(self, region: str):
+        """Create a new boto3 client for the specified region"""
+        effective_region = region_mapper.get_effective_region(region)
         self.client = boto3.client(
             service_name='bedrock-runtime',
-            region_name=region,
+            region_name=effective_region,
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
         )
+        logger.info(f"Created client for region {region} (effective: {effective_region})")
     
     @circuit_protected
     async def generate_response(self, messages: list, system_prompts: list):
+        # Recreate client to ensure we're using the current mapping
+        self._create_client(self.region)
         return self.client.converse(
             modelId=settings.MODEL_ID,
             messages=messages,
