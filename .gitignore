@@ -50,3 +50,17 @@ htmlcov/
 .cache
 coverage.xml
 *.cover 
+
+# Chat histories
+chat_histories/
+chat_histories/*
+
+# docs
+docs/diagrams/*
+docs/*
+
+# outputs
+outputs/*
+
+# scripts
+scripts/*
